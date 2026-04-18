@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-cormorant: "Cormorant Garamond", Georgia, serif;
+  --font-dm-sans: "DM Sans", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #080808;
+  color: #f5f0e8;
+  min-height: 100vh;
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #111111;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C9A96E;
+}
+
+/* Sélection de texte */
+::selection {
+  background-color: rgba(201, 169, 110, 0.25);
+  color: #F5F0E8;
+}
+
+@layer components {
+  .oriva-card {
+    @apply bg-oriva-card border border-oriva-border rounded-xl;
+  }
+
+  .oriva-input {
+    @apply w-full bg-oriva-surface border border-oriva-border rounded-lg px-4 py-3
+    text-oriva-cream placeholder-oriva-muted text-sm
+    focus:outline-none focus:border-oriva-gold focus:ring-1 focus:ring-oriva-gold/30
+    transition-all duration-200;
+  }
+
+  .oriva-btn-primary {
+    @apply bg-oriva-gold hover:bg-oriva-gold-light text-oriva-black
+    font-medium text-sm px-5 py-2.5 rounded-lg
+    transition-all duration-200 active:scale-95
+    disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .oriva-btn-ghost {
+    @apply border border-oriva-border hover:border-oriva-gold/50 hover:bg-oriva-gold/5
+    text-oriva-muted hover:text-oriva-cream
+    font-medium text-sm px-5 py-2.5 rounded-lg
+    transition-all duration-200 active:scale-95;
+  }
+
+  .oriva-btn-danger {
+    @apply bg-oriva-danger/10 hover:bg-oriva-danger/20 border border-oriva-danger/30
+    text-oriva-danger
+    font-medium text-sm px-5 py-2.5 rounded-lg
+    transition-all duration-200 active:scale-95;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      #161616 25%,
+      #1f1f1f 50%,
+      #161616 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}
