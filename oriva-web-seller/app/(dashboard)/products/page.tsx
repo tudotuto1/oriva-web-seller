@@ -169,7 +169,22 @@ export default function ProductsPage() {
               <div className="p-4">
                 <h3 className="font-medium text-oriva-cream text-sm truncate">{product.title}</h3>
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-oriva-gold font-display text-lg">{formatPrice(product.price)}</span>
+                  <div className="flex flex-col">
+                    {product.vendor_price_cny != null ? (
+                      <>
+                        <span className="text-oriva-gold font-display text-lg leading-none">
+                          {product.vendor_price_cny} ¥
+                        </span>
+                        {product.vendor_price_fcfa_at_creation != null && (
+                          <span className="text-oriva-muted text-[10px] mt-0.5">
+                            ≈ {formatPrice(product.vendor_price_fcfa_at_creation)} (votre revenu)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-oriva-warning text-xs">⚠ Prix CNY manquant</span>
+                    )}
+                  </div>
                   <span className="text-oriva-muted text-xs">{product.stock} en stock</span>
                 </div>
                 <p className="text-oriva-muted text-xs mt-1">{formatDate(product.created_at)}</p>

@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDropzone } from "react-dropzone";
-import { Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Loader2, Upload, X, Info } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import type { Product } from "@/types/database";
@@ -21,7 +21,12 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
 
   const [title, setTitle] = useState(product?.title ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [price, setPrice] = useState(product?.price?.toString() ?? "");
+  const [vendorPriceCny, setVendorPriceCny] = useState(
+    product?.vendor_price_cny?.toString() ?? ""
+  );
+  const [weightGrams, setWeightGrams] = useState(
+    product?.weight_grams?.toString() ?? ""
+  );
   const [stock, setStock] = useState(product?.stock?.toString() ?? "0");
   const [existingImages, setExistingImages] = useState<string[]>(product?.images ?? []);
   const [newFiles, setNewFiles] = useState<File[]>([]);
@@ -52,35 +57,102 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
     return urls;
   }
 
+  /**
+   * Calcule le pricing complet via la RPC Supabase calculate_product_pricing.
+   * Retourne null si erreur (le caller gère le toast d'erreur).
+   */
+  async function fetchPricing(cny: number, grams: number) {
+    const { data, error } = await supabase.rpc("calculate_product_pricing", {
+      p_vendor_price_cny: cny,
+      p_weight_grams: grams,
+    });
+    if (error) {
+      console.error("calculate_product_pricing error:", error);
+      toast.error("Erreur de calcul du prix. Vérifiez le taux de change.");
+      return null;
+    }
+    return data as {
+      vendor_price_cny: number;
+      exchange_rate: number;
+      vendor_price_fcfa: number;
+      commission_percent: number;
+      commission_fcfa: number;
+      display_price: number;
+      weight_grams: number;
+    };
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast.error("Le titre est requis."); return; }
-    if (!price || isNaN(Number(price))) { toast.error("Prix invalide."); return; }
+
+    if (!title.trim()) {
+      toast.error("Le titre est requis.");
+      return;
+    }
+    const cnyNum = Number(vendorPriceCny);
+    if (!vendorPriceCny || isNaN(cnyNum) || cnyNum <= 0) {
+      toast.error("Prix d'achat (CNY) invalide.");
+      return;
+    }
+    const weightNum = Number(weightGrams);
+    if (!weightGrams || isNaN(weightNum) || weightNum <= 0) {
+      toast.error("Poids (g) invalide.");
+      return;
+    }
+    const stockNum = Number(stock);
+    if (isNaN(stockNum) || stockNum < 0) {
+      toast.error("Stock invalide.");
+      return;
+    }
 
     setLoading(true);
     try {
+      // 1. Calculer le pricing côté serveur (snapshot du moment)
+      const pricing = await fetchPricing(cnyNum, weightNum);
+      if (!pricing) {
+        setLoading(false);
+        return;
+      }
+
+      // 2. Upload images
       const uploadedUrls = await uploadImages();
       const allImages = [...existingImages, ...uploadedUrls];
 
+      // 3. Préparer le payload (incl. price legacy = display_price pour compat)
+      const payload = {
+        title,
+        description,
+        price: pricing.display_price,                     // legacy compat
+        stock: stockNum,
+        images: allImages,
+        vendor_price_cny: cnyNum,
+        weight_grams: weightNum,
+        currency: "CNY" as const,
+        vendor_price_fcfa_at_creation: pricing.vendor_price_fcfa,
+        exchange_rate_at_creation: pricing.exchange_rate,
+      };
+
+      // 4. INSERT ou UPDATE
       if (isEdit) {
         const { error } = await supabase
           .from("products")
-          .update({ title, description, price: Number(price), stock: Number(stock), images: allImages })
+          .update(payload)
           .eq("id", product!.id);
         if (error) throw error;
         toast.success("Produit mis à jour !");
       } else {
         const { error } = await supabase
           .from("products")
-          .insert({ vendor_id: vendorId, title, description, price: Number(price), stock: Number(stock), images: allImages });
+          .insert({ vendor_id: vendorId, ...payload });
         if (error) throw error;
         toast.success("Produit créé !");
       }
+
       router.push("/products");
       router.refresh();
     } catch (err: unknown) {
-      toast.error("Une erreur est survenue.");
       console.error(err);
+      toast.error("Une erreur est survenue.");
     } finally {
       setLoading(false);
     }
@@ -90,7 +162,9 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
       {/* Titre */}
       <div>
-        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Titre *</label>
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+          Titre *
+        </label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -102,7 +176,9 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
 
       {/* Description */}
       <div>
-        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Description</label>
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+          Description
+        </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -112,38 +188,70 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
         />
       </div>
 
-      {/* Prix + Stock */}
+      {/* Prix d'achat CNY + Poids */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Prix (XOF) *</label>
+          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+            Prix d'achat (CNY) *
+          </label>
           <input
             type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            value={vendorPriceCny}
+            onChange={(e) => setVendorPriceCny(e.target.value)}
             className="oriva-input"
-            placeholder="0"
+            placeholder="Ex: 50"
             min="0"
             step="1"
             required
           />
         </div>
         <div>
-          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Stock</label>
+          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+            Poids (g) *
+          </label>
           <input
             type="number"
-            value={stock}
-            onChange={(e) => setStock(e.target.value)}
+            value={weightGrams}
+            onChange={(e) => setWeightGrams(e.target.value)}
             className="oriva-input"
-            placeholder="0"
-            min="0"
+            placeholder="Ex: 300"
+            min="1"
+            step="1"
+            required
           />
         </div>
+      </div>
+
+      {/* Note explicative discrète */}
+      <div className="flex gap-2 items-start text-xs text-oriva-muted bg-oriva-surface/50 border border-oriva-border rounded-lg px-3 py-2">
+        <Info size={14} className="flex-shrink-0 mt-0.5" />
+        <p>
+          Le prix de vente final affiché aux clients (incluant la conversion FCFA,
+          les frais de service Oriva et la livraison) est calculé automatiquement.
+        </p>
+      </div>
+
+      {/* Stock */}
+      <div className="max-w-[50%]">
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+          Stock
+        </label>
+        <input
+          type="number"
+          value={stock}
+          onChange={(e) => setStock(e.target.value)}
+          className="oriva-input"
+          placeholder="0"
+          min="0"
+        />
       </div>
 
       {/* Images existantes */}
       {existingImages.length > 0 && (
         <div>
-          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Images actuelles</label>
+          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+            Images actuelles
+          </label>
           <div className="flex flex-wrap gap-3">
             {existingImages.map((url, i) => (
               <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-oriva-border group">
@@ -213,7 +321,11 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
         >
           Annuler
         </button>
-        <button type="submit" className="oriva-btn-primary flex items-center gap-2" disabled={loading}>
+        <button
+          type="submit"
+          className="oriva-btn-primary flex items-center gap-2"
+          disabled={loading}
+        >
           {loading ? (
             <><Loader2 size={16} className="animate-spin" /> Enregistrement…</>
           ) : (

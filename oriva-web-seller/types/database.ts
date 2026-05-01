@@ -22,12 +22,19 @@ export interface Product {
   vendor_id: string;
   title: string;
   description: string | null;
-  price: number;
+  price: number;                                     // legacy = display_price snapshot (pour compat app Flutter)
   stock: number;
   images: string[];
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+  // Phase 2.5.3.5
+  vendor_price_cny: number | null;
+  weight_grams: number | null;
+  currency: "CNY" | "FCFA" | null;
+  vendor_price_fcfa_at_creation: number | null;
+  exchange_rate_at_creation: number | null;
+  category_id: string | null;
 }
 
 export interface Order {
@@ -55,6 +62,14 @@ export interface OrderItem {
   price_snapshot: number;
   quantity: number;
   created_at: string;
+  // Phase 2.5.3.5 snapshots complets
+  vendor_price_cny_snapshot: number | null;
+  exchange_rate_snapshot: number | null;
+  vendor_price_fcfa_snapshot: number | null;
+  commission_percent_snapshot: number | null;
+  commission_fcfa_snapshot: number | null;
+  display_price_snapshot: number | null;
+  weight_grams_snapshot: number | null;
 }
 
 export interface Notification {
