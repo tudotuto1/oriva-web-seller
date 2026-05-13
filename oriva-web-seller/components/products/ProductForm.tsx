@@ -8,13 +8,16 @@ import { Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import type { Product } from "@/types/database";
+import type { Category } from "@/lib/categories";
+import CategorySelect from "@/components/products/CategorySelect";
 
 interface ProductFormProps {
   product?: Product;
   vendorId: string;
+  categories: Category[];
 }
 
-export default function ProductForm({ product, vendorId }: ProductFormProps) {
+export default function ProductForm({ product, vendorId, categories }: ProductFormProps) {
   const router = useRouter();
   const supabase = createClient();
   const isEdit = !!product;
@@ -23,6 +26,7 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
   const [description, setDescription] = useState(product?.description ?? "");
   const [price, setPrice] = useState(product?.price?.toString() ?? "");
   const [stock, setStock] = useState(product?.stock?.toString() ?? "0");
+  const [categoryId, setCategoryId] = useState<string | null>(product?.category_id ?? null);
   const [existingImages, setExistingImages] = useState<string[]>(product?.images ?? []);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,14 +69,14 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
       if (isEdit) {
         const { error } = await supabase
           .from("products")
-          .update({ title, description, price: Number(price), stock: Number(stock), images: allImages })
+          .update({ title, description, price: Number(price), stock: Number(stock), images: allImages, category_id: categoryId })
           .eq("id", product!.id);
         if (error) throw error;
         toast.success("Produit mis à jour !");
       } else {
         const { error } = await supabase
           .from("products")
-          .insert({ vendor_id: vendorId, title, description, price: Number(price), stock: Number(stock), images: allImages });
+          .insert({ vendor_id: vendorId, title, description, price: Number(price), stock: Number(stock), images: allImages, category_id: categoryId });
         if (error) throw error;
         toast.success("Produit créé !");
       }
@@ -138,6 +142,18 @@ export default function ProductForm({ product, vendorId }: ProductFormProps) {
             min="0"
           />
         </div>
+      </div>
+
+      {/* Catégorie */}
+      <div>
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Catégorie</label>
+        <CategorySelect
+          categories={categories}
+          value={categoryId}
+          onChange={setCategoryId}
+          disabled={loading}
+        />
+        <p className="text-xs text-oriva-muted/70 mt-1.5">Aide les clients à filtrer dans l&apos;app.</p>
       </div>
 
       {/* Images existantes */}

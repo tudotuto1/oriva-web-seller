@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import ProductForm from "@/components/products/ProductForm";
+import { fetchActiveCategories } from "@/lib/categories";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -10,12 +11,15 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: product } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", id)
-    .eq("vendor_id", user.id)
-    .single();
+  const [{ data: product }, categories] = await Promise.all([
+    supabase
+      .from("products")
+      .select("*")
+      .eq("id", id)
+      .eq("vendor_id", user.id)
+      .single(),
+    fetchActiveCategories(),
+  ]);
 
   if (!product) notFound();
 
@@ -29,7 +33,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         <p className="text-oriva-muted text-sm mt-1 truncate">{product.title}</p>
       </div>
       <div className="oriva-card p-6">
-        <ProductForm product={product} vendorId={user.id} />
+        <ProductForm product={product} vendorId={user.id} categories={categories} />
       </div>
     </div>
   );

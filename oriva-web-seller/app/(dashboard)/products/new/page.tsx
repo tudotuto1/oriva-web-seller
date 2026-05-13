@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import ProductForm from "@/components/products/ProductForm";
+import { fetchActiveCategories } from "@/lib/categories";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -8,6 +9,8 @@ export default async function NewProductPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const categories = await fetchActiveCategories();
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -19,7 +22,7 @@ export default async function NewProductPage() {
         <p className="text-oriva-muted text-sm mt-1">Ajoutez un produit à votre catalogue</p>
       </div>
       <div className="oriva-card p-6">
-        <ProductForm vendorId={user.id} />
+        <ProductForm vendorId={user.id} categories={categories} />
       </div>
     </div>
   );

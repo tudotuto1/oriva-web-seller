@@ -28,7 +28,7 @@ export default function ProductsPage() {
 
     const { data } = await supabase
       .from("products")
-      .select("*")
+      .select("*, categories(name_fr)")
       .eq("vendor_id", user.id)
       .eq("is_archived", tab === "archived")
       .order("created_at", { ascending: false });
@@ -168,6 +168,11 @@ export default function ProductsPage() {
               {/* Infos */}
               <div className="p-4">
                 <h3 className="font-medium text-oriva-cream text-sm truncate">{product.title}</h3>
+                {product.categories?.name_fr && (
+                  <span className="inline-block mt-1.5 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border border-oriva-gold/30 text-oriva-gold/90">
+                    {product.categories.name_fr}
+                  </span>
+                )}
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-oriva-gold font-display text-lg">{formatPrice(product.price)}</span>
                   <span className="text-oriva-muted text-xs">{product.stock} en stock</span>
