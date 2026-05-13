@@ -26,6 +26,8 @@ export interface Product {
   stock: number;
   images: string[];
   is_archived: boolean;
+  category_id: string | null;
+  categories?: { name_fr: string } | null;
   created_at: string;
   updated_at: string;
 }
