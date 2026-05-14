@@ -42,6 +42,10 @@ export interface Order {
   total: number;
   shipping_address: ShippingAddress | null;
   buyer_email: string | null;
+  payment_provider: "ligdicash_orange_bf" | "ligdicash_moov_bf" | "mock" | null;
+  payment_phone: string | null;
+  payment_country_code: string | null;
+  payment_confirmed_at: string | null;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];

@@ -7,6 +7,7 @@ import {
   formatPrice, formatDate, truncateId,
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS
 } from "@/lib/utils";
+import { formatPhoneBF, providerLabel, providerColor } from "@/lib/formatPhone";
 import toast from "react-hot-toast";
 import type { Order, OrderStatus } from "@/types/database";
 
@@ -157,6 +158,45 @@ export default function OrdersPage() {
                   <div className="border-t border-oriva-border pt-2 flex justify-between text-xs text-oriva-muted">
                     <span>Livraison</span>
                     <span>{formatPrice(order.shipping_fee)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Paiement */}
+              {order.payment_phone && (
+                <div className="border-t border-oriva-border pt-3 mb-4 space-y-2">
+                  <div className="text-xs uppercase tracking-widest text-oriva-muted">
+                    Paiement
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-xs px-2 py-1 rounded-full border ${providerColor(order.payment_provider)}`}>
+                      {providerLabel(order.payment_provider)}
+                    </span>
+                    {order.payment_confirmed_at && (
+                      <span className="text-xs text-oriva-muted">
+                        {new Date(order.payment_confirmed_at).toLocaleString("fr-FR", {
+                          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-oriva-cream font-mono">
+                      {formatPhoneBF(order.payment_phone, order.payment_country_code)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (order.payment_phone) {
+                          navigator.clipboard.writeText(order.payment_phone)
+                            .then(() => toast.success("Numéro copié"))
+                            .catch(() => toast.error("Impossible de copier"));
+                        }
+                      }}
+                      className="text-xs px-2 py-1 rounded border border-oriva-gold/30 text-oriva-gold hover:bg-oriva-gold/10 transition"
+                    >
+                      Copier
+                    </button>
                   </div>
                 </div>
               )}
