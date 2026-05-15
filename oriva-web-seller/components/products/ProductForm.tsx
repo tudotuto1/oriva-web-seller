@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDropzone } from "react-dropzone";
-import { Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Loader2, Upload, X, Calculator } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types/database";
 import type { Category } from "@/lib/categories";
 import CategorySelect from "@/components/products/CategorySelect";
@@ -17,6 +18,16 @@ interface ProductFormProps {
   categories: Category[];
 }
 
+interface PricingPreview {
+  vendor_price_cny: number;
+  weight_grams: number;
+  exchange_rate: number;
+  vendor_price_fcfa: number;
+  commission_percent: number;
+  commission_fcfa: number;
+  display_price: number;
+}
+
 export default function ProductForm({ product, vendorId, categories }: ProductFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -24,12 +35,52 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
 
   const [title, setTitle] = useState(product?.title ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [price, setPrice] = useState(product?.price?.toString() ?? "");
+  const [vendorPriceCny, setVendorPriceCny] = useState(product?.vendor_price_cny?.toString() ?? "");
+  const [weightGrams, setWeightGrams] = useState(product?.weight_grams?.toString() ?? "");
   const [stock, setStock] = useState(product?.stock?.toString() ?? "0");
   const [categoryId, setCategoryId] = useState<string | null>(product?.category_id ?? null);
   const [existingImages, setExistingImages] = useState<string[]>(product?.images ?? []);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<PricingPreview | null>(null);
+  const [shippingEstimate, setShippingEstimate] = useState<number | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Aperçu prix temps réel (debounced 500ms)
+  useEffect(() => {
+    const cny = Number(vendorPriceCny);
+    const g = Number(weightGrams);
+    if (!cny || cny <= 0 || !g || g <= 0) {
+      setPreview(null);
+      setShippingEstimate(null);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      setPreviewLoading(true);
+      try {
+        const [pricingRes, shippingRes] = await Promise.all([
+          supabase.rpc("calculate_product_pricing", {
+            p_vendor_price_cny: cny,
+            p_weight_grams: g,
+          }),
+          supabase.rpc("calculate_shipping_fee", {
+            p_total_weight_grams: g,
+          }),
+        ]);
+        if (!pricingRes.error && pricingRes.data) {
+          setPreview(pricingRes.data as PricingPreview);
+        }
+        if (!shippingRes.error && shippingRes.data != null) {
+          setShippingEstimate(shippingRes.data as number);
+        }
+      } finally {
+        setPreviewLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(handle);
+  }, [vendorPriceCny, weightGrams, supabase]);
 
   const onDrop = useCallback((accepted: File[]) => {
     const valid = accepted.filter((f) => f.size <= 5 * 1024 * 1024);
@@ -59,31 +110,48 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { toast.error("Le titre est requis."); return; }
-    if (!price || isNaN(Number(price))) { toast.error("Prix invalide."); return; }
+    const cny = Number(vendorPriceCny);
+    const g = Number(weightGrams);
+    if (!cny || cny <= 0) { toast.error("Prix vendeur (CNY) invalide."); return; }
+    if (!g || g <= 0) { toast.error("Poids (g) invalide."); return; }
+    if (!preview) { toast.error("Aperçu prix indisponible. Vérifiez CNY et poids."); return; }
 
     setLoading(true);
     try {
       const uploadedUrls = await uploadImages();
       const allImages = [...existingImages, ...uploadedUrls];
 
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        price: preview.display_price,
+        vendor_price_cny: cny,
+        weight_grams: g,
+        currency: "CNY" as const,
+        stock: Number(stock) || 0,
+        images: allImages,
+        category_id: categoryId,
+      };
+
       if (isEdit) {
         const { error } = await supabase
           .from("products")
-          .update({ title, description, price: Number(price), stock: Number(stock), images: allImages, category_id: categoryId })
+          .update(payload)
           .eq("id", product!.id);
         if (error) throw error;
         toast.success("Produit mis à jour !");
       } else {
         const { error } = await supabase
           .from("products")
-          .insert({ vendor_id: vendorId, title, description, price: Number(price), stock: Number(stock), images: allImages, category_id: categoryId });
+          .insert({ ...payload, vendor_id: vendorId });
         if (error) throw error;
         toast.success("Produit créé !");
       }
       router.push("/products");
       router.refresh();
     } catch (err: unknown) {
-      toast.error("Une erreur est survenue.");
+      const msg = err instanceof Error ? err.message : "Erreur inconnue.";
+      toast.error(`Erreur : ${msg}`);
       console.error(err);
     } finally {
       setLoading(false);
@@ -116,32 +184,95 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         />
       </div>
 
-      {/* Prix + Stock */}
+      {/* Prix CNY + Poids */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Prix (XOF) *</label>
+          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+            Prix vendeur (¥ CNY) *
+          </label>
           <input
             type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            value={vendorPriceCny}
+            onChange={(e) => setVendorPriceCny(e.target.value)}
             className="oriva-input"
-            placeholder="0"
-            min="0"
+            placeholder="20"
+            min="1"
             step="1"
             required
           />
+          <p className="text-xs text-oriva-muted/70 mt-1.5">Coût d&apos;achat en Chine (yuan).</p>
         </div>
         <div>
-          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Stock</label>
+          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Poids (g) *</label>
           <input
             type="number"
-            value={stock}
-            onChange={(e) => setStock(e.target.value)}
+            value={weightGrams}
+            onChange={(e) => setWeightGrams(e.target.value)}
             className="oriva-input"
-            placeholder="0"
-            min="0"
+            placeholder="350"
+            min="1"
+            step="1"
+            required
           />
+          <p className="text-xs text-oriva-muted/70 mt-1.5">Poids unitaire de l&apos;article.</p>
         </div>
+      </div>
+
+      {/* Stock */}
+      <div>
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Stock</label>
+        <input
+          type="number"
+          value={stock}
+          onChange={(e) => setStock(e.target.value)}
+          className="oriva-input max-w-xs"
+          placeholder="0"
+          min="0"
+        />
+      </div>
+
+      {/* Aperçu prix client */}
+      <div className="rounded-xl border border-oriva-gold/20 bg-oriva-gold/5 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Calculator size={16} className="text-oriva-gold" />
+          <h3 className="text-sm font-medium text-oriva-cream uppercase tracking-widest">
+            Aperçu prix client
+          </h3>
+        </div>
+        {previewLoading ? (
+          <p className="text-oriva-muted text-sm">Calcul en cours…</p>
+        ) : preview ? (
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-oriva-muted">Prix affiché client</span>
+              <span className="text-oriva-gold font-display text-xl">
+                {formatPrice(preview.display_price)}
+              </span>
+            </div>
+            <div className="flex justify-between text-xs text-oriva-muted/70">
+              <span>Taux change appliqué</span>
+              <span>{preview.exchange_rate} FCFA/¥</span>
+            </div>
+            <div className="flex justify-between text-xs text-oriva-muted/70">
+              <span>Coût vendeur converti</span>
+              <span>{formatPrice(preview.vendor_price_fcfa)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-oriva-muted/70">
+              <span>Marge Oriva ({preview.commission_percent}%)</span>
+              <span>{formatPrice(preview.commission_fcfa)}</span>
+            </div>
+            {shippingEstimate !== null && (
+              <div className="flex justify-between text-xs text-oriva-muted/70 pt-2 border-t border-oriva-border">
+                <span>Livraison estimée (poids unitaire)</span>
+                <span>{formatPrice(shippingEstimate)}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-oriva-muted text-sm">
+            Saisissez prix CNY et poids pour voir le prix client final.
+          </p>
+        )}
       </div>
 
       {/* Catégorie */}
@@ -229,7 +360,11 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         >
           Annuler
         </button>
-        <button type="submit" className="oriva-btn-primary flex items-center gap-2" disabled={loading}>
+        <button
+          type="submit"
+          className="oriva-btn-primary flex items-center gap-2"
+          disabled={loading || !preview}
+        >
           {loading ? (
             <><Loader2 size={16} className="animate-spin" /> Enregistrement…</>
           ) : (
