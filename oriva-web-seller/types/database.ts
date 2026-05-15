@@ -24,6 +24,9 @@ export interface Product {
   description: string | null;
   price: number;
   stock: number;
+  vendor_price_cny: number | null;
+  weight_grams: number | null;
+  currency: "CNY" | "FCFA" | null;
   images: string[];
   is_archived: boolean;
   category_id: string | null;
