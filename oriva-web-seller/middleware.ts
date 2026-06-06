@@ -31,6 +31,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // Page produit publique (partage)
+  if (pathname.startsWith("/p/")) {
+    return supabaseResponse;
+  }
+
   // Routes publiques
   if (pathname.startsWith("/login")) {
     if (user) {
