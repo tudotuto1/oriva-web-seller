@@ -15,7 +15,15 @@ async function getProduct(id: string): Promise<Product | null> {
     .eq("id", id)
     .eq("is_archived", false)
     .single();
-  return (data as Product) ?? null;
+  if (!data) return null;
+
+  const { data: pricing } = await supabase
+    .from("products_with_pricing")
+    .select("display_price")
+    .eq("id", id)
+    .single();
+
+  return { ...(data as Product), display_price: pricing?.display_price } as Product;
 }
 
 export async function generateMetadata({
@@ -101,7 +109,7 @@ export default async function PublicProductPage({
               {product.title}
             </h1>
             <p className="text-2xl text-oriva-gold font-medium mt-4">
-              {formatPrice(product.price)}
+              {formatPrice((product as any).display_price ?? product.price)}
             </p>
 
             <div className="mt-3">
