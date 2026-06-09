@@ -30,6 +30,7 @@ export interface Product {
   images: string[];
   is_archived: boolean;
   category_id: string | null;
+  available_sizes: string[] | null;
   categories?: { name_fr: string } | null;
   created_at: string;
   updated_at: string;

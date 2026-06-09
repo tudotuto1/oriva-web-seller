@@ -12,6 +12,9 @@ import type { Product } from "@/types/database";
 import type { Category } from "@/lib/categories";
 import CategorySelect from "@/components/products/CategorySelect";
 
+const CLOTHING_CATEGORY_ID = "fbb5ef2e-b780-4a7f-a248-765746d0406d";
+const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL", "3XL", "Taille unique"];
+
 interface ProductFormProps {
   product?: Product;
   vendorId: string;
@@ -39,6 +42,14 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
   const [weightGrams, setWeightGrams] = useState(product?.weight_grams?.toString() ?? "");
   const [stock, setStock] = useState(product?.stock?.toString() ?? "0");
   const [categoryId, setCategoryId] = useState<string | null>(product?.category_id ?? null);
+  const [sizes, setSizes] = useState<string[]>(product?.available_sizes ?? []);
+  const isClothing = categoryId === CLOTHING_CATEGORY_ID;
+
+  function toggleSize(s: string) {
+    setSizes((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
+  }
   const [existingImages, setExistingImages] = useState<string[]>(product?.images ?? []);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -116,6 +127,11 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
     if (!g || g <= 0) { toast.error("Poids (g) invalide."); return; }
     if (!preview) { toast.error("Aperçu prix indisponible. Vérifiez CNY et poids."); return; }
 
+    if (isClothing && sizes.length === 0) {
+      toast.error("Sélectionnez au moins une taille disponible.");
+      return;
+    }
+
     setLoading(true);
     try {
       const uploadedUrls = await uploadImages();
@@ -131,6 +147,7 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         stock: Number(stock) || 0,
         images: allImages,
         category_id: categoryId,
+        available_sizes: isClothing ? sizes : null,
       };
 
       if (isEdit) {
@@ -286,6 +303,36 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         />
         <p className="text-xs text-oriva-muted/70 mt-1.5">Aide les clients à filtrer dans l&apos;app.</p>
       </div>
+
+      {isClothing && (
+        <div>
+          <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+            Tailles disponibles *
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {SIZE_OPTIONS.map((s) => {
+              const active = sizes.includes(s);
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggleSize(s)}
+                  className={`px-4 py-2 rounded-lg border text-sm transition-all ${
+                    active
+                      ? "border-oriva-gold bg-oriva-gold/10 text-oriva-gold"
+                      : "border-oriva-border text-oriva-muted hover:border-oriva-gold/40"
+                  }`}
+                >
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-oriva-muted/70 mt-1.5">
+            Obligatoire pour les vêtements. Le client choisira parmi ces tailles.
+          </p>
+        </div>
+      )}
 
       {/* Images existantes */}
       {existingImages.length > 0 && (
