@@ -163,6 +163,11 @@ export default function ProductsPage() {
                     Rupture
                   </div>
                 )}
+                {product.stock > 0 && product.stock <= 5 && (
+                  <div className="absolute top-2 left-2 bg-oriva-warning/90 text-oriva-black text-xs px-2 py-0.5 rounded-full font-medium">
+                    Stock bas
+                  </div>
+                )}
               </div>
 
               {/* Infos */}
@@ -175,7 +180,15 @@ export default function ProductsPage() {
                 )}
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-oriva-gold font-display text-lg">{formatPrice(product.price)}</span>
-                  <span className="text-oriva-muted text-xs">{product.stock} en stock</span>
+                  <span className={`text-xs ${
+                    product.stock === 0
+                      ? "text-oriva-danger"
+                      : product.stock <= 5
+                        ? "text-oriva-warning"
+                        : "text-oriva-muted"
+                  }`}>
+                    {product.stock} en stock
+                  </span>
                 </div>
                 <p className="text-oriva-muted text-xs mt-1">{formatDate(product.created_at)}</p>
 
