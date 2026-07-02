@@ -31,6 +31,7 @@ export interface Product {
   is_archived: boolean;
   category_id: string | null;
   available_sizes: string[] | null;
+  available_colors: string[] | null;
   categories?: { name_fr: string } | null;
   created_at: string;
   updated_at: string;

@@ -14,6 +14,19 @@ import CategorySelect from "@/components/products/CategorySelect";
 
 const CLOTHING_CATEGORY_ID = "fbb5ef2e-b780-4a7f-a248-765746d0406d";
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL", "3XL", "Taille unique"];
+const COLOR_OPTIONS: { name: string; hex: string }[] = [
+  { name: "rouge", hex: "#DC2626" },
+  { name: "jaune", hex: "#EAB308" },
+  { name: "vert", hex: "#16A34A" },
+  { name: "marron", hex: "#92400E" },
+  { name: "bleu", hex: "#2563EB" },
+  { name: "violet", hex: "#7C3AED" },
+  { name: "orange", hex: "#EA580C" },
+  { name: "noir", hex: "#111111" },
+  { name: "blanc", hex: "#FFFFFF" },
+  { name: "rose", hex: "#EC4899" },
+  { name: "gris", hex: "#6B7280" },
+];
 
 interface ProductFormProps {
   product?: Product;
@@ -48,6 +61,14 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
   function toggleSize(s: string) {
     setSizes((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
+  }
+
+  const [colors, setColors] = useState<string[]>(product?.available_colors ?? []);
+
+  function toggleColor(c: string) {
+    setColors((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
     );
   }
   const [existingImages, setExistingImages] = useState<string[]>(product?.images ?? []);
@@ -148,6 +169,7 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         images: allImages,
         category_id: categoryId,
         available_sizes: isClothing ? sizes : null,
+        available_colors: colors.length > 0 ? colors : null,
       };
 
       if (isEdit) {
@@ -333,6 +355,38 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
           </p>
         </div>
       )}
+
+      <div>
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+          Couleurs disponibles (facultatif)
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {COLOR_OPTIONS.map((c) => {
+            const active = colors.includes(c.name);
+            return (
+              <button
+                key={c.name}
+                type="button"
+                onClick={() => toggleColor(c.name)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm capitalize transition-all ${
+                  active
+                    ? "border-oriva-gold bg-oriva-gold/10 text-oriva-gold"
+                    : "border-oriva-border text-oriva-muted hover:border-oriva-gold/40"
+                }`}
+              >
+                <span
+                  className="w-4 h-4 rounded-full border border-white/20"
+                  style={{ backgroundColor: c.hex }}
+                />
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-oriva-muted/70 mt-1.5">
+          Le client choisira une couleur. Vous serez notifié de la couleur exacte à livrer.
+        </p>
+      </div>
 
       {/* Images existantes */}
       {existingImages.length > 0 && (
