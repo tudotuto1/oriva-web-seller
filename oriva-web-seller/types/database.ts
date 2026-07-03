@@ -65,6 +65,8 @@ export interface OrderItem {
   image_snapshot: string | null;
   price_snapshot: number;
   quantity: number;
+  size?: string | null;
+  color?: string | null;
   created_at: string;
 }
 

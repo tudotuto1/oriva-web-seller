@@ -11,6 +11,12 @@ import { formatPhoneBF, providerLabel, providerColor } from "@/lib/formatPhone";
 import toast from "react-hot-toast";
 import type { Order, OrderStatus } from "@/types/database";
 
+const COLOR_HEX: Record<string, string> = {
+  rouge: "#DC2626", jaune: "#EAB308", vert: "#16A34A", marron: "#92400E",
+  bleu: "#2563EB", violet: "#7C3AED", orange: "#EA580C", noir: "#111111",
+  blanc: "#FFFFFF", rose: "#EC4899", gris: "#6B7280",
+};
+
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: "shipped",
   shipped: "delivered",
@@ -41,7 +47,7 @@ export default function OrdersPage() {
 
     const { data } = await supabase
       .from("orders")
-      .select("*, order_items(title_snapshot, quantity, price_snapshot, image_snapshot)")
+      .select("*, order_items(title_snapshot, quantity, price_snapshot, image_snapshot, size, color)")
       .eq("vendor_id", user.id)
       .in("status", tab === "active" ? activeStatuses : historyStatuses)
       .order("created_at", { ascending: false });
@@ -148,11 +154,29 @@ export default function OrdersPage() {
               {order.order_items && order.order_items.length > 0 && (
                 <div className="bg-oriva-surface rounded-lg p-3 mb-4 space-y-2">
                   {order.order_items.map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-oriva-muted">
-                        {item.title_snapshot} <span className="text-oriva-border">×{item.quantity}</span>
-                      </span>
-                      <span className="text-oriva-cream">{formatPrice(item.price_snapshot * item.quantity)}</span>
+                    <div key={i} className="flex justify-between text-sm gap-3">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="text-oriva-muted">
+                          {item.title_snapshot} <span className="text-oriva-border">×{item.quantity}</span>
+                        </span>
+                        {(item.size || item.color) && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {item.size && (
+                              <span className="text-[11px] px-2 py-0.5 rounded border border-oriva-border text-oriva-muted">
+                                Taille : {item.size}
+                              </span>
+                            )}
+                            {item.color && (
+                              <span className="text-[11px] px-2 py-0.5 rounded border border-oriva-border text-oriva-muted flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full border border-white/20"
+                                  style={{ backgroundColor: COLOR_HEX[item.color] ?? "#6B7280" }} />
+                                {item.color}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-oriva-cream whitespace-nowrap">{formatPrice(item.price_snapshot * item.quantity)}</span>
                     </div>
                   ))}
                   <div className="border-t border-oriva-border pt-2 flex justify-between text-xs text-oriva-muted">
