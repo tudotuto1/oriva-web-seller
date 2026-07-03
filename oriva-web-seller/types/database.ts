@@ -32,6 +32,8 @@ export interface Product {
   category_id: string | null;
   available_sizes: string[] | null;
   available_colors: string[] | null;
+  source_country?: string | null;
+  vendor_price?: number | null;
   categories?: { name_fr: string } | null;
   created_at: string;
   updated_at: string;

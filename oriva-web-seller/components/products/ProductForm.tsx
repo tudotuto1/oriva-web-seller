@@ -27,6 +27,13 @@ const COLOR_OPTIONS: { name: string; hex: string }[] = [
   { name: "rose", hex: "#EC4899" },
   { name: "gris", hex: "#6B7280" },
 ];
+const SOURCE_OPTIONS: {
+  code: "CN" | "GH" | "BF"; label: string; currency: string; unit: string; hint: string;
+}[] = [
+  { code: "CN", label: "Chine", currency: "CNY", unit: "¥ CNY", hint: "Coût d'achat en Chine (yuan)." },
+  { code: "GH", label: "Ghana", currency: "GHS", unit: "₵ cédi", hint: "Coût d'achat au Ghana (cédi)." },
+  { code: "BF", label: "Burkina", currency: "FCFA", unit: "FCFA", hint: "Coût d'achat local (FCFA)." },
+];
 
 interface ProductFormProps {
   product?: Product;
@@ -35,8 +42,8 @@ interface ProductFormProps {
 }
 
 interface PricingPreview {
-  vendor_price_cny: number;
-  weight_grams: number;
+  vendor_price: number;
+  currency: string;
   exchange_rate: number;
   vendor_price_fcfa: number;
   commission_percent: number;
@@ -51,7 +58,13 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
 
   const [title, setTitle] = useState(product?.title ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [vendorPriceCny, setVendorPriceCny] = useState(product?.vendor_price_cny?.toString() ?? "");
+  const [sourceCountry, setSourceCountry] = useState<"CN" | "GH" | "BF">(
+    (product?.source_country as "CN" | "GH" | "BF") ?? "CN"
+  );
+  const [vendorPrice, setVendorPrice] = useState(
+    (product?.vendor_price ?? product?.vendor_price_cny)?.toString() ?? ""
+  );
+  const currentSource = SOURCE_OPTIONS.find((s) => s.code === sourceCountry)!;
   const [weightGrams, setWeightGrams] = useState(product?.weight_grams?.toString() ?? "");
   const [stock, setStock] = useState(product?.stock?.toString() ?? "0");
   const [categoryId, setCategoryId] = useState<string | null>(product?.category_id ?? null);
@@ -80,21 +93,21 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
 
   // Aperçu prix temps réel (debounced 500ms)
   useEffect(() => {
-    const cny = Number(vendorPriceCny);
+    const price = Number(vendorPrice);
     const g = Number(weightGrams);
-    if (!cny || cny <= 0 || !g || g <= 0) {
+    if (!price || price <= 0 || !g || g <= 0) {
       setPreview(null);
       setShippingEstimate(null);
       return;
     }
-
     const handle = setTimeout(async () => {
       setPreviewLoading(true);
       try {
         const [pricingRes, shippingRes] = await Promise.all([
           supabase.rpc("calculate_product_pricing", {
-            p_vendor_price_cny: cny,
+            p_vendor_price: price,
             p_weight_grams: g,
+            p_source_country: sourceCountry,
           }),
           supabase.rpc("calculate_shipping_fee", {
             p_total_weight_grams: g,
@@ -110,9 +123,8 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         setPreviewLoading(false);
       }
     }, 500);
-
     return () => clearTimeout(handle);
-  }, [vendorPriceCny, weightGrams, supabase]);
+  }, [vendorPrice, weightGrams, sourceCountry, supabase]);
 
   const onDrop = useCallback((accepted: File[]) => {
     const valid = accepted.filter((f) => f.size <= 5 * 1024 * 1024);
@@ -142,9 +154,9 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { toast.error("Le titre est requis."); return; }
-    const cny = Number(vendorPriceCny);
+    const price = Number(vendorPrice);
     const g = Number(weightGrams);
-    if (!cny || cny <= 0) { toast.error("Prix vendeur (CNY) invalide."); return; }
+    if (!price || price <= 0) { toast.error("Prix vendeur invalide."); return; }
     if (!g || g <= 0) { toast.error("Poids (g) invalide."); return; }
     if (!preview) { toast.error("Aperçu prix indisponible. Vérifiez CNY et poids."); return; }
 
@@ -162,9 +174,11 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         title: title.trim(),
         description: description.trim() || null,
         price: preview.display_price,
-        vendor_price_cny: cny,
+        source_country: sourceCountry,
+        vendor_price: price,
+        vendor_price_cny: sourceCountry === "CN" ? price : null,
         weight_grams: g,
-        currency: "CNY" as const,
+        currency: currentSource.currency,
         stock: Number(stock) || 0,
         images: allImages,
         category_id: categoryId,
@@ -223,23 +237,52 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
         />
       </div>
 
+      {/* Provenance */}
+      <div>
+        <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
+          Provenance *
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {SOURCE_OPTIONS.map((s) => {
+            const active = sourceCountry === s.code;
+            return (
+              <button
+                key={s.code}
+                type="button"
+                onClick={() => setSourceCountry(s.code)}
+                className={`px-4 py-2 rounded-lg border text-sm transition-all ${
+                  active
+                    ? "border-oriva-gold bg-oriva-gold/10 text-oriva-gold"
+                    : "border-oriva-border text-oriva-muted hover:border-oriva-gold/40"
+                }`}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-oriva-muted/70 mt-1.5">
+          D&apos;où vient ce produit. Détermine la devise du prix.
+        </p>
+      </div>
+
       {/* Prix CNY + Poids */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">
-            Prix vendeur (¥ CNY) *
+            Prix vendeur ({currentSource.unit}) *
           </label>
           <input
             type="number"
-            value={vendorPriceCny}
-            onChange={(e) => setVendorPriceCny(e.target.value)}
+            value={vendorPrice}
+            onChange={(e) => setVendorPrice(e.target.value)}
             className="oriva-input"
             placeholder="20"
             min="1"
-            step="1"
+            step="any"
             required
           />
-          <p className="text-xs text-oriva-muted/70 mt-1.5">Coût d&apos;achat en Chine (yuan).</p>
+          <p className="text-xs text-oriva-muted/70 mt-1.5">{currentSource.hint}</p>
         </div>
         <div>
           <label className="block text-xs text-oriva-muted mb-2 uppercase tracking-widest">Poids (g) *</label>
@@ -290,7 +333,7 @@ export default function ProductForm({ product, vendorId, categories }: ProductFo
             </div>
             <div className="flex justify-between text-xs text-oriva-muted/70">
               <span>Taux change appliqué</span>
-              <span>{preview.exchange_rate} FCFA/¥</span>
+              <span>{preview.exchange_rate} FCFA / {currentSource.currency}</span>
             </div>
             <div className="flex justify-between text-xs text-oriva-muted/70">
               <span>Coût vendeur converti</span>
